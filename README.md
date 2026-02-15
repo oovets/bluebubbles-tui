@@ -6,8 +6,8 @@ A sleek, real-time terminal user interface (TUI) for BlueBubbles, allowing you t
 
 - Browse and read iMessage conversations with contact names
 - Send messages to any chat (press Enter)
-- Message previews - see the first line of the latest message in each chat (toggle with `p`)
-- Real-time notifications via WebSocket (Socket.IO)
+- Real-time message delivery via WebSocket (Socket.IO) with auto-reconnect
+- New message indicators - chats with unread messages are highlighted in red and moved to the top
 - Full keyboard navigation with Tab/Arrow keys
 - Contact name lookup - shows real names instead of phone numbers
 - Smart chat sorting by most recent activity
@@ -70,11 +70,12 @@ chat_limit: 50
 | Key | Action |
 |-----|--------|
 | `Tab` | Switch focus between chat list, messages, and input |
-| `↑` / `↓` | Scroll messages up/down (when in messages panel) |
+| `↑` / `↓` or `k` / `j` | Navigate chat list or scroll messages |
 | `Enter` (chat list) | Select and open chat |
 | `Enter` (input box) | Send message |
 | `Shift+Enter` (input box) | New line in message |
-| `p` (chat list) | Toggle message preview (shows 1st line of latest msg) |
+| `g` (chat list) | Jump to top of chat list |
+| `G` (chat list) | Jump to bottom of chat list |
 | `q` / `Ctrl+C` | Quit the application |
 
 ## Status Indicators
@@ -90,6 +91,7 @@ chat_limit: 50
 - **ws/client.go** - WebSocket client for real-time updates (Socket.IO)
 - **tui/app.go** - Main TUI model and orchestration
 - **tui/chatlist.go** - Chat list component
+- **tui/simplelist.go** - Custom scrollable list widget (no auto-centering)
 - **tui/messages.go** - Message thread viewport
 - **tui/input.go** - Message input box
 - **config/config.go** - Configuration loading
@@ -101,7 +103,7 @@ chat_limit: 50
 3. **API Connection**: Connects to BlueBubbles REST API to fetch chats and messages with contact names enriched
 4. **WebSocket**: Attempts to establish real-time WebSocket connection (Socket.IO) for live updates
 5. **Message Sending**: Uses the `/api/v1/message/text` endpoint with Apple Script method and unique tempGuid
-6. **Real-time Updates**: Receives new messages via WebSocket without requiring manual refresh
+6. **Real-time Updates**: Receives new messages via WebSocket with auto-reconnect; incoming messages for inactive chats are highlighted in red and moved to the top of the list
 7. **TUI Rendering**: Bubble Tea handles all terminal rendering and event loop
 
 ## Troubleshooting

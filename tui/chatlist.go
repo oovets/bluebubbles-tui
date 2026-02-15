@@ -36,6 +36,16 @@ func (m *ChatListModel) SelectedChat() *models.Chat {
 	return m.list.SelectedItem()
 }
 
+// MarkNewMessage marks a chat as having a new message and moves it to the top
+func (m *ChatListModel) MarkNewMessage(chatGUID string) {
+	m.list.MarkNewMessage(chatGUID)
+}
+
+// ClearNewMessage clears the new message indicator for a chat
+func (m *ChatListModel) ClearNewMessage(chatGUID string) {
+	m.list.ClearNewMessage(chatGUID)
+}
+
 func (m ChatListModel) Update(msg tea.Msg) (ChatListModel, tea.Cmd) {
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)

@@ -13,6 +13,7 @@ type Chat struct {
 	Participants    []Handle  `json:"participants"`
 	LastMessage     *Message  `json:"lastMessage"`
 	UnreadCount     int       `json:"unreadCount"`
+	HasNewMessage   bool      `json:"-"` // Set when a new WS message arrives for this chat
 	LastMessageText string    `json:"-"` // Preview of latest message (not from API)
 }
 

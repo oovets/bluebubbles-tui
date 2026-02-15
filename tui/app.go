@@ -163,9 +163,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Select chat and load messages
 				selected := m.chatList.SelectedChat()
 				if selected != nil {
-				m.activeChat = selected
+					m.activeChat = selected
 					m.messages.SetChatName(selected.GetDisplayName())
-					// Don't pass Enter to the list component - return immediately
+					// Clear new message indicator
+					m.chatList.ClearNewMessage(selected.GUID)
 					return m, loadMessagesCmd(m.apiClient, selected.GUID)
 				}
 				return m, nil
@@ -349,17 +350,31 @@ func (m *AppModel) handleWSEvent(event models.WSEvent) (tea.Model, tea.Cmd) {
 	switch event.Type {
 	case "new-message":
 		// Parse incoming message
-		var msg models.Message
-		if err := json.Unmarshal(event.Data, &msg); err != nil {
-			return m, nil
+		// BlueBubbles sends the message with a "chats" array containing the chat GUID
+		var wsMsg struct {
+			models.Message
+			Chats []struct {
+				GUID string `json:"guid"`
+			} `json:"chats"`
+		}
+		if err := json.Unmarshal(event.Data, &wsMsg); err != nil {
+			return m, waitForWSEventCmd(m.wsClient)
 		}
 
-		// Only add if it's for the currently active chat
-		if m.activeChat != nil && msg.ChatGUID == m.activeChat.GUID {
-			// Get current messages and append
+		msg := wsMsg.Message
+		// Extract chat GUID from the chats array
+		if len(wsMsg.Chats) > 0 {
+			msg.ChatGUID = wsMsg.Chats[0].GUID
+		}
+
+		if msg.ChatGUID != "" && m.activeChat != nil && msg.ChatGUID == m.activeChat.GUID {
+			// Active chat: append message directly
 			currentMsgs := m.messages.messages
 			currentMsgs = append(currentMsgs, msg)
 			m.messages.SetMessages(currentMsgs)
+		} else if msg.ChatGUID != "" {
+			// Not active chat: mark as having new message and move to top
+			m.chatList.MarkNewMessage(msg.ChatGUID)
 		}
 
 		// Re-arm WebSocket listener
