@@ -40,7 +40,8 @@ func (m *MessagesModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	m.viewport.Width = width
-	m.viewport.Height = height
+	// Reserve 1 line for the chat name header
+	m.viewport.Height = height - 1
 	m.renderContent()
 }
 

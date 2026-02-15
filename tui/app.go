@@ -98,6 +98,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case chatsLoadedMsg:
 		m.chatList.SetChats([]models.Chat(msg))
+		m.updateLayout()
 		if len(msg) > 0 {
 			m.activeChat = &msg[0]
 			m.messages.SetChatName(msg[0].GetDisplayName())
@@ -162,8 +163,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Select chat and load messages
 				selected := m.chatList.SelectedChat()
 				if selected != nil {
-					m.activeChat = selected
+				m.activeChat = selected
 					m.messages.SetChatName(selected.GetDisplayName())
+					// Don't pass Enter to the list component - return immediately
 					return m, loadMessagesCmd(m.apiClient, selected.GUID)
 				}
 				return m, nil
@@ -175,6 +177,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+			// If Enter was pressed but not handled, don't pass it to sub-components
+			return m, nil
 		}
 		// Fall through to delegate to sub-component
 	}
@@ -195,8 +199,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *AppModel) updateLayout() {
 	chatListW, messagesW, messagesH, _ := CalculateLayout(m.width, m.height)
-	m.chatList.SetSize(chatListW, m.height-3)
-	m.messages.SetSize(messagesW, messagesH)
+	// Content heights = panel height minus border (2 lines for top+bottom)
+	chatListContentHeight := m.height - 3 - 2
+	messagesContentHeight := messagesH - 2
+	m.chatList.SetSize(chatListW, chatListContentHeight)
+	m.messages.SetSize(messagesW, messagesContentHeight)
 	m.input.SetSize(messagesW)
 }
 
@@ -210,9 +217,11 @@ func (m AppModel) View() string {
 	if m.focused == focusChatList {
 		chatListStyle = ActivePanelStyle
 	}
+	panelHeight := m.height - 3
 	chatPanel := chatListStyle.
 		Width(ChatListWidth).
-		Height(m.height - 3).
+		Height(panelHeight).
+		MaxHeight(panelHeight).
 		Render(m.chatList.View())
 
 	// Render messages panel
@@ -225,9 +234,11 @@ func (m AppModel) View() string {
 	messagesHeight := m.height - InputHeight - 3
 
 	messagesView := m.messages.View()
+	// Ensure messages panel has consistent height
 	messagesPanel := messagesStyle.
 		Width(messagesWidth).
 		Height(messagesHeight).
+		MaxHeight(messagesHeight).
 		Render(messagesView)
 
 	// Render input panel
