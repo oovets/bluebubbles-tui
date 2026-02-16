@@ -85,6 +85,43 @@ func (wm *WindowManager) SetFocus(id WindowID) {
 	}
 }
 
+// CycleFocus moves focus to the next window (ordered by ID).
+// Returns true if it moved to another window.
+// Returns false if it wrapped around (was on last window) or only one window exists.
+func (wm *WindowManager) CycleFocus() bool {
+	if len(wm.windows) <= 1 {
+		return false
+	}
+
+	// Collect and sort window IDs
+	ids := make([]WindowID, 0, len(wm.windows))
+	for id := range wm.windows {
+		ids = append(ids, id)
+	}
+	for i := range ids {
+		for j := i + 1; j < len(ids); j++ {
+			if ids[j] < ids[i] {
+				ids[i], ids[j] = ids[j], ids[i]
+			}
+		}
+	}
+
+	// Find current position
+	for i, id := range ids {
+		if id == wm.focusedWindow {
+			nextIdx := i + 1
+			if nextIdx >= len(ids) {
+				// Wrapped around — signal caller to go back to chat list
+				return false
+			}
+			wm.SetFocus(ids[nextIdx])
+			return true
+		}
+	}
+
+	return false
+}
+
 // SplitWindow splits the focused window in the given direction
 // Returns true if split was successful
 func (wm *WindowManager) SplitWindow(direction SplitDirection) bool {

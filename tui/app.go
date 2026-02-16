@@ -102,6 +102,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if window != nil {
 				chat := msg[0]
 				window.SetChat(&chat)
+				m.focused = focusWindow
+				window.Input.textarea.Focus()
 				return m, loadMessagesCmd(m.apiClient, chat.GUID, window.ID)
 			}
 		}
@@ -171,44 +173,75 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateLayout()
 			return m, nil
 
-		// Window navigation
-		case "ctrl+h", "left":
+		// Arrow keys navigate between panes
+		case "left":
 			if m.focused == focusWindow {
 				m.windowManager.FocusDirection(DirLeft)
-				return m, nil
+			} else {
+				// From chat list, move to windows
+				m.focused = focusWindow
+				if window := m.windowManager.FocusedWindow(); window != nil {
+					window.Input.textarea.Focus()
+				}
 			}
+			return m, nil
 
-		case "ctrl+l", "right":
+		case "right":
 			if m.focused == focusWindow {
-				m.windowManager.FocusDirection(DirRight)
-				return m, nil
+				if !m.windowManager.CycleFocus() {
+					// Only one window, go back to chat list
+					m.focused = focusChatList
+					if window := m.windowManager.FocusedWindow(); window != nil {
+						window.Input.textarea.Blur()
+					}
+				}
+			} else {
+				// From chat list, move to windows
+				m.focused = focusWindow
+				if window := m.windowManager.FocusedWindow(); window != nil {
+					window.Input.textarea.Focus()
+				}
 			}
-
-		case "ctrl+k":
-			if m.focused == focusWindow {
-				m.windowManager.FocusDirection(DirUp)
-				return m, nil
-			}
-
-		case "ctrl+j":
-			if m.focused == focusWindow {
-				m.windowManager.FocusDirection(DirDown)
-				return m, nil
-			}
+			return m, nil
 
 		case "tab":
-			// Toggle between chat list and windows
+			// Cycle: chatList -> window1 -> window2 -> ... -> chatList
 			if m.focused == focusChatList {
+				// Move to first window
 				m.focused = focusWindow
-				// Focus the window's input
+				// Reset to first window
+				wm := m.windowManager
+				ids := make([]WindowID, 0, len(wm.windows))
+				for id := range wm.windows {
+					ids = append(ids, id)
+				}
+				for i := range ids {
+					for j := i + 1; j < len(ids); j++ {
+						if ids[j] < ids[i] {
+							ids[i], ids[j] = ids[j], ids[i]
+						}
+					}
+				}
+				if len(ids) > 0 {
+					wm.SetFocus(ids[0])
+				}
 				if window := m.windowManager.FocusedWindow(); window != nil {
 					window.Input.textarea.Focus()
 				}
 			} else {
-				m.focused = focusChatList
-				// Blur window input
+				// Blur current window input
 				if window := m.windowManager.FocusedWindow(); window != nil {
 					window.Input.textarea.Blur()
+				}
+				// Try next window
+				if m.windowManager.CycleFocus() {
+					// Moved to next window, focus its input
+					if window := m.windowManager.FocusedWindow(); window != nil {
+						window.Input.textarea.Focus()
+					}
+				} else {
+					// No more windows, go back to chat list
+					m.focused = focusChatList
 				}
 			}
 			return m, nil
@@ -222,6 +255,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if window != nil {
 						window.SetChat(selected)
 						m.chatList.ClearNewMessage(selected.GUID)
+						// Switch focus to window input
+						m.focused = focusWindow
+						window.Input.textarea.Focus()
 						// Check cache first
 						if cached := m.windowManager.GetCachedMessages(selected.GUID); len(cached) > 0 {
 							window.Messages.SetMessages(cached)
