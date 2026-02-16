@@ -11,6 +11,7 @@ A sleek, real-time terminal user interface (TUI) for BlueBubbles, allowing you t
 - Full keyboard navigation with Tab/Arrow keys
 - Contact name lookup - shows real names instead of phone numbers
 - Smart chat sorting by most recent activity
+- Toggle chat list visibility and message timestamps
 
 ## Prerequisites
 
@@ -76,13 +77,9 @@ chat_limit: 50
 | `Shift+Enter` (input box) | New line in message |
 | `g` (chat list) | Jump to top of chat list |
 | `G` (chat list) | Jump to bottom of chat list |
+| `Ctrl+S` | Toggle chat list visibility |
+| `Ctrl+T` | Toggle message timestamps |
 | `q` / `Ctrl+C` | Quit the application |
-
-## Status Indicators
-
-- **🔗 Live** - WebSocket connection active, receiving real-time updates
-- **📡 Polling** - Using fallback polling (WebSocket connection failed)
-- **⚠ Error** - Connection error displayed in status bar
 
 ## Architecture
 
@@ -131,10 +128,9 @@ BlueBubbles uses self-signed HTTPS certificates. The client automatically skips 
 4. Check the log file (~/.bluebubbles-tui.log) for API errors
 
 ### Messages not updating in real-time
-1. Check if WebSocket is connected (status shows "🔗 Live" or "📡 Polling")
-2. If showing "📡 Polling", WebSocket failed - check network/firewall rules
-3. Real-time updates require the WebSocket connection to be active
-4. Check firewall/network rules between this client and BlueBubbles server
+1. WebSocket connection may have failed - check network/firewall rules
+2. Real-time updates require the WebSocket connection to be active
+3. Check firewall/network rules between this client and BlueBubbles server
 
 ## Building from Source
 

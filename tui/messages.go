@@ -16,6 +16,7 @@ type MessagesModel struct {
 	chatName string
 	width    int
 	height   int
+	showTimestamps bool
 }
 
 func NewMessagesModel() MessagesModel {
@@ -24,6 +25,7 @@ func NewMessagesModel() MessagesModel {
 
 	return MessagesModel{
 		viewport: vp,
+		showTimestamps: true,
 	}
 }
 
@@ -48,6 +50,14 @@ func (m *MessagesModel) SetSize(width, height int) {
 	m.viewport.Width = width
 	// Reserve 1 line for the chat name header
 	m.viewport.Height = height - 1
+	m.renderContent()
+}
+
+func (m *MessagesModel) SetShowTimestamps(show bool) {
+	if m.showTimestamps == show {
+		return
+	}
+	m.showTimestamps = show
 	m.renderContent()
 }
 
@@ -79,12 +89,16 @@ func (m *MessagesModel) renderContent() {
 		lines := strings.Split(text, "\n")
 		for i, line := range lines {
 			if i == 0 {
+				prefix := ""
+				if m.showTimestamps {
+					prefix = timeStr + " "
+				}
 				if msg.IsFromMe {
-					// Apply style to entire message including timestamp, sender, and text
-					styledLine := fmt.Sprintf("[%s] **%s**: %s", timeStr, sender, line)
+					// Apply style to entire message including sender and text
+					styledLine := fmt.Sprintf("%s%s: %s", prefix, sender, line)
 					sb.WriteString(MyMessageStyle.Render(styledLine))
 				} else {
-					styledLine := fmt.Sprintf("[%s] **%s**: %s", timeStr, sender, line)
+					styledLine := fmt.Sprintf("%s%s: %s", prefix, sender, line)
 					sb.WriteString(TheirMessageStyle.Render(styledLine))
 				}
 			} else {

@@ -24,6 +24,7 @@ type WindowManager struct {
 	nextID        WindowID
 	focusedWindow WindowID
 	maxWindows    int
+	showTimestamps bool
 
 	// Message cache per chat GUID
 	messageCache map[string][]models.Message
@@ -39,10 +40,12 @@ func NewWindowManager() *WindowManager {
 		nextID:       1,
 		maxWindows:   4,
 		messageCache: make(map[string][]models.Message),
+		showTimestamps: true,
 	}
 
 	// Create initial window
 	window := NewChatWindow(0)
+	window.Messages.SetShowTimestamps(wm.showTimestamps)
 	window.Focused = true
 	wm.windows[0] = window
 	wm.focusedWindow = 0
@@ -132,6 +135,7 @@ func (wm *WindowManager) SplitWindow(direction SplitDirection) bool {
 
 	// Create new window
 	newWindow := NewChatWindow(wm.nextID)
+	newWindow.Messages.SetShowTimestamps(wm.showTimestamps)
 	wm.windows[wm.nextID] = newWindow
 	wm.nextID++
 
@@ -297,6 +301,17 @@ func (wm *WindowManager) AllWindows() []*ChatWindow {
 // WindowCount returns the number of windows
 func (wm *WindowManager) WindowCount() int {
 	return len(wm.windows)
+}
+
+// SetShowTimestamps toggles timestamps for all windows.
+func (wm *WindowManager) SetShowTimestamps(show bool) {
+	if wm.showTimestamps == show {
+		return
+	}
+	wm.showTimestamps = show
+	for _, w := range wm.windows {
+		w.Messages.SetShowTimestamps(show)
+	}
 }
 
 // Render renders all windows

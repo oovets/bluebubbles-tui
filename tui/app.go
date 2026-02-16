@@ -58,6 +58,9 @@ type AppModel struct {
 
 	// Debug
 	lastKey string
+
+	showTimestamps bool
+	showChatList   bool
 }
 
 func NewAppModel(client *api.Client, wsClient *ws.Client) AppModel {
@@ -69,6 +72,8 @@ func NewAppModel(client *api.Client, wsClient *ws.Client) AppModel {
 		focused:       focusChatList,
 		width:         80,
 		height:        24,
+		showTimestamps: true,
+		showChatList:   true,
 	}
 }
 
@@ -173,10 +178,30 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateLayout()
 			return m, nil
 
+		case "ctrl+s":
+			// Toggle chat list visibility
+			m.showChatList = !m.showChatList
+			if !m.showChatList && m.focused == focusChatList {
+				m.focused = focusWindow
+				if window := m.windowManager.FocusedWindow(); window != nil {
+					window.Input.textarea.Focus()
+				}
+			}
+			m.updateLayout()
+			return m, nil
+
+		case "ctrl+t":
+			// Toggle timestamps
+			m.showTimestamps = !m.showTimestamps
+			m.windowManager.SetShowTimestamps(m.showTimestamps)
+			return m, nil
+
 		// Arrow keys navigate between panes
 		case "left":
 			if m.focused == focusWindow {
-				m.windowManager.FocusDirection(DirLeft)
+				if m.showChatList {
+					m.windowManager.FocusDirection(DirLeft)
+				}
 			} else {
 				// From chat list, move to windows
 				m.focused = focusWindow
@@ -190,9 +215,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focused == focusWindow {
 				if !m.windowManager.CycleFocus() {
 					// Only one window, go back to chat list
-					m.focused = focusChatList
-					if window := m.windowManager.FocusedWindow(); window != nil {
-						window.Input.textarea.Blur()
+					if m.showChatList {
+						m.focused = focusChatList
+						if window := m.windowManager.FocusedWindow(); window != nil {
+							window.Input.textarea.Blur()
+						}
 					}
 				}
 			} else {
@@ -239,8 +266,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if window := m.windowManager.FocusedWindow(); window != nil {
 						window.Input.textarea.Focus()
 					}
-				} else {
-					// No more windows, go back to chat list
+				} else if m.showChatList {
+					// No more windows, go back to chat list (if visible)
 					m.focused = focusChatList
 				}
 			}
@@ -297,12 +324,19 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *AppModel) updateLayout() {
 	// Calculate chat list dimensions (no borders, just padding)
-	chatListContentHeight := m.height - 1 // Reserve 1 for status bar
-	m.chatList.SetSize(ChatListWidth, chatListContentHeight)
+	chatListContentHeight := m.height
+	chatListWidth := 0
+	if m.showChatList {
+		chatListWidth = ChatListWidth
+	}
+	m.chatList.SetSize(chatListWidth, chatListContentHeight)
 
 	// Calculate window area (everything to the right of chat list)
-	windowsWidth := m.width - ChatListWidth - 2 // -2 for padding
-	windowsHeight := m.height - 1 // Reserve 1 for status bar
+	windowsWidth := m.width - 2 // -2 for padding
+	if m.showChatList {
+		windowsWidth -= ChatListWidth
+	}
+	windowsHeight := m.height
 
 	m.windowManager.SetSize(windowsWidth, windowsHeight)
 }
@@ -313,66 +347,35 @@ func (m AppModel) View() string {
 	}
 
 	// Render chat list panel
-	chatListStyle := PanelStyle
-	if m.focused == focusChatList {
-		chatListStyle = ActivePanelStyle
+	chatPanel := ""
+	if m.showChatList {
+		chatListStyle := PanelStyle
+		if m.focused == focusChatList {
+			chatListStyle = ActivePanelStyle
+		}
+		panelHeight := m.height
+		chatPanel = chatListStyle.
+			Width(ChatListWidth).
+			Height(panelHeight).
+			MaxHeight(panelHeight).
+			Render(m.chatList.View())
 	}
-	panelHeight := m.height - 1
-	chatPanel := chatListStyle.
-		Width(ChatListWidth).
-		Height(panelHeight).
-		MaxHeight(panelHeight).
-		Render(m.chatList.View())
 
 	// Render windows area
 	windowsView := m.windowManager.Render()
 
 	// Join panels horizontally
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		chatPanel,
-		windowsView,
-	)
+	content := windowsView
+	if m.showChatList {
+		content = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			chatPanel,
+			windowsView,
+		)
+	}
 
 	// Render status bar
-	windowCount := m.windowManager.WindowCount()
-	splitHint := ""
-	if windowCount < 4 {
-		splitHint = "  [C-f] hsplit  [C-g] vsplit"
-	}
-	if windowCount > 1 {
-		splitHint += "  [Ctrl+W] close"
-	}
-
-	statusLeft := fmt.Sprintf("  [Tab] switch  [↑↓] scroll  [Enter] send/select%s  [q] quit", splitHint)
-	statusRight := ""
-
-	if m.loading {
-		statusRight = " ⟳ Loading... "
-	} else if m.err != nil {
-		statusRight = fmt.Sprintf(" ⚠ Error: %v ", m.err)
-	} else if m.wsConnected {
-		statusRight = fmt.Sprintf(" 🔗 Live [%d/%d] ", windowCount, m.windowManager.maxWindows)
-	} else {
-		statusRight = fmt.Sprintf(" 📡 Polling [%d/%d] ", windowCount, m.windowManager.maxWindows)
-	}
-
-	if m.lastKey != "" {
-		statusRight = fmt.Sprintf(" key:%q ", m.lastKey) + statusRight
-	}
-
-	statusBar := StatusBarStyle.
-		Width(m.width - 2).
-		Render(statusLeft + lipgloss.NewStyle().
-			Align(lipgloss.Right).
-			Width(m.width - len(statusLeft) - 4).
-			Render(statusRight))
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		content,
-		statusBar,
-	)
+	return content
 }
 
 // Command constructors
