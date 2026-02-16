@@ -16,34 +16,30 @@ type focusRegion int
 
 const (
 	focusChatList focusRegion = iota
-	focusMessages
-	focusInput
+	focusWindow
 )
 
 // Message types for Bubble Tea
 type (
-	chatsLoadedMsg     []models.Chat
-	messagesLoadedMsg  []models.Message
-	sendSuccessMsg     struct{}
-	sendErrMsg         error
-	wsEventMsg         models.WSEvent
-	wsConnectSuccessMsg struct{}
-	wsConnectFailMsg   error
-	errMsg             error
-	msgWithChatGUID    struct {
-		msg      models.Message
+	chatsLoadedMsg      []models.Chat
+	messagesLoadedMsg   struct {
 		chatGUID string
+		messages []models.Message
 	}
+	sendSuccessMsg      struct{ windowID WindowID }
+	sendErrMsg          error
+	wsEventMsg          models.WSEvent
+	wsConnectSuccessMsg struct{}
+	wsConnectFailMsg    error
+	errMsg              error
 )
 
 type AppModel struct {
 	// Sub-components
-	chatList ChatListModel
-	messages MessagesModel
-	input    InputModel
+	chatList      ChatListModel
+	windowManager *WindowManager
 
 	// State
-	activeChat      *models.Chat
 	loading         bool
 	err             error
 	wsConnected     bool
@@ -59,25 +55,26 @@ type AppModel struct {
 
 	// Focus tracking
 	focused focusRegion
+
+	// Debug
+	lastKey string
 }
 
 func NewAppModel(client *api.Client, wsClient *ws.Client) AppModel {
 	return AppModel{
-		chatList:  NewChatListModel(),
-		messages:  NewMessagesModel(),
-		input:     NewInputModel(),
-		apiClient: client,
-		wsClient:  wsClient,
-		focused:   focusChatList,
-		width:     80,
-		height:    24,
+		chatList:      NewChatListModel(),
+		windowManager: NewWindowManager(),
+		apiClient:     client,
+		wsClient:      wsClient,
+		focused:       focusChatList,
+		width:         80,
+		height:        24,
 	}
 }
 
 func (m AppModel) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		loadChatsCmd(m.apiClient),
-		m.input.Focus(),
 	}
 
 	// Try to connect WebSocket for real-time updates
@@ -99,21 +96,33 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case chatsLoadedMsg:
 		m.chatList.SetChats([]models.Chat(msg))
 		m.updateLayout()
+		// Auto-select first chat in focused window if available
 		if len(msg) > 0 {
-			m.activeChat = &msg[0]
-			m.messages.SetChatName(msg[0].GetDisplayName())
-			return m, loadMessagesCmd(m.apiClient, msg[0].GUID)
+			window := m.windowManager.FocusedWindow()
+			if window != nil {
+				chat := msg[0]
+				window.SetChat(&chat)
+				return m, loadMessagesCmd(m.apiClient, chat.GUID, window.ID)
+			}
 		}
 		return m, nil
 
 	case messagesLoadedMsg:
-		m.messages.SetMessages([]models.Message(msg))
+		// Update cache
+		m.windowManager.SetCachedMessages(msg.chatGUID, msg.messages)
+		// Update all windows showing this chat
+		for _, window := range m.windowManager.WindowsShowingChat(msg.chatGUID) {
+			window.Messages.SetMessages(msg.messages)
+		}
 		return m, nil
 
 	case sendSuccessMsg:
-		m.input.Clear()
-		if m.activeChat != nil {
-			return m, loadMessagesCmd(m.apiClient, m.activeChat.GUID)
+		// Clear input for the window that sent
+		if window := m.windowManager.windows[msg.windowID]; window != nil {
+			window.Input.Clear()
+			if window.Chat != nil {
+				return m, loadMessagesCmd(m.apiClient, window.Chat.GUID, window.ID)
+			}
 		}
 		return m, nil
 
@@ -122,17 +131,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case wsConnectSuccessMsg:
-		// WebSocket connected, start listening for events
 		m.wsConnected = true
 		return m, waitForWSEventCmd(m.wsClient)
 
 	case wsConnectFailMsg:
 		m.err = msg
-		// Fall back to polling every 10 seconds
 		return m, nil
 
 	case wsEventMsg:
-		// Handle WebSocket event
 		return m.handleWSEvent(models.WSEvent(msg))
 
 	case errMsg:
@@ -140,72 +146,129 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		m.lastKey = msg.String()
 		// Handle global keys first
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+
+		// Split operations
+		case "ctrl+f":
+			// Split horizontal (side by side)
+			m.windowManager.SplitWindow(SplitHorizontal)
+			m.updateLayout()
+			return m, nil
+
+		case "ctrl+g":
+			// Split vertical (stacked)
+			m.windowManager.SplitWindow(SplitVertical)
+			m.updateLayout()
+			return m, nil
+
+		case "ctrl+w":
+			// Close focused window
+			m.windowManager.CloseWindow()
+			m.updateLayout()
+			return m, nil
+
+		// Window navigation
+		case "ctrl+h", "left":
+			if m.focused == focusWindow {
+				m.windowManager.FocusDirection(DirLeft)
+				return m, nil
+			}
+
+		case "ctrl+l", "right":
+			if m.focused == focusWindow {
+				m.windowManager.FocusDirection(DirRight)
+				return m, nil
+			}
+
+		case "ctrl+k":
+			if m.focused == focusWindow {
+				m.windowManager.FocusDirection(DirUp)
+				return m, nil
+			}
+
+		case "ctrl+j":
+			if m.focused == focusWindow {
+				m.windowManager.FocusDirection(DirDown)
+				return m, nil
+			}
+
 		case "tab":
-			// Cycle focus: chatList -> input -> messages -> chatList
-			switch m.focused {
-			case focusChatList:
-				m.focused = focusInput
-				m.input.textarea.Focus()
-			case focusInput:
-				m.focused = focusMessages
-				m.input.textarea.Blur()
-			case focusMessages:
+			// Toggle between chat list and windows
+			if m.focused == focusChatList {
+				m.focused = focusWindow
+				// Focus the window's input
+				if window := m.windowManager.FocusedWindow(); window != nil {
+					window.Input.textarea.Focus()
+				}
+			} else {
 				m.focused = focusChatList
-				m.input.textarea.Blur()
+				// Blur window input
+				if window := m.windowManager.FocusedWindow(); window != nil {
+					window.Input.textarea.Blur()
+				}
 			}
 			return m, nil
+
 		case "enter":
 			if m.focused == focusChatList {
-				// Select chat and load messages
+				// Select chat and load in focused window
 				selected := m.chatList.SelectedChat()
 				if selected != nil {
-					m.activeChat = selected
-					m.messages.SetChatName(selected.GetDisplayName())
-					// Clear new message indicator
-					m.chatList.ClearNewMessage(selected.GUID)
-					return m, loadMessagesCmd(m.apiClient, selected.GUID)
+					window := m.windowManager.FocusedWindow()
+					if window != nil {
+						window.SetChat(selected)
+						m.chatList.ClearNewMessage(selected.GUID)
+						// Check cache first
+						if cached := m.windowManager.GetCachedMessages(selected.GUID); len(cached) > 0 {
+							window.Messages.SetMessages(cached)
+						}
+						return m, loadMessagesCmd(m.apiClient, selected.GUID, window.ID)
+					}
 				}
 				return m, nil
-			} else if m.focused == focusInput {
-				// Send message when pressing Enter in input
-				text := m.input.GetText()
-				if text != "" && m.activeChat != nil {
-					return m, sendMessageCmd(m.apiClient, m.activeChat.GUID, text)
+			} else if m.focused == focusWindow {
+				// Send message from focused window
+				window := m.windowManager.FocusedWindow()
+				if window != nil && window.Chat != nil {
+					text := window.Input.GetText()
+					if text != "" {
+						return m, sendMessageCmd(m.apiClient, window.Chat.GUID, text, window.ID)
+					}
 				}
 				return m, nil
 			}
-			// If Enter was pressed but not handled, don't pass it to sub-components
 			return m, nil
 		}
-		// Fall through to delegate to sub-component
 	}
 
-	// Delegate to focused sub-component
+	// Delegate to focused component
 	var cmd tea.Cmd
 	switch m.focused {
 	case focusChatList:
 		m.chatList, cmd = m.chatList.Update(msg)
-	case focusInput:
-		m.input, cmd = m.input.Update(msg)
-	case focusMessages:
-		m.messages, cmd = m.messages.Update(msg)
+	case focusWindow:
+		if window := m.windowManager.FocusedWindow(); window != nil {
+			cmd = window.Update(msg)
+		}
 	}
 
 	return m, cmd
 }
 
 func (m *AppModel) updateLayout() {
-	chatListW, messagesW, messagesH, _ := CalculateLayout(m.width, m.height)
-	// Content heights = panel height minus border (2 lines for top+bottom)
-	chatListContentHeight := m.height - 3 - 2
-	messagesContentHeight := messagesH - 2
-	m.chatList.SetSize(chatListW, chatListContentHeight)
-	m.messages.SetSize(messagesW, messagesContentHeight)
-	m.input.SetSize(messagesW)
+	// Calculate chat list dimensions (no borders, just padding)
+	chatListContentHeight := m.height - 1 // Reserve 1 for status bar
+	m.chatList.SetSize(ChatListWidth, chatListContentHeight)
+
+	// Calculate window area (everything to the right of chat list)
+	windowsWidth := m.width - ChatListWidth - 2 // -2 for padding
+	windowsHeight := m.height - 1 // Reserve 1 for status bar
+
+	m.windowManager.SetSize(windowsWidth, windowsHeight)
 }
 
 func (m AppModel) View() string {
@@ -218,56 +281,34 @@ func (m AppModel) View() string {
 	if m.focused == focusChatList {
 		chatListStyle = ActivePanelStyle
 	}
-	panelHeight := m.height - 3
+	panelHeight := m.height - 1
 	chatPanel := chatListStyle.
 		Width(ChatListWidth).
 		Height(panelHeight).
 		MaxHeight(panelHeight).
 		Render(m.chatList.View())
 
-	// Render messages panel
-	messagesStyle := PanelStyle
-	if m.focused == focusMessages {
-		messagesStyle = ActivePanelStyle
-	}
-
-	messagesWidth := m.width - ChatListWidth - 4
-	messagesHeight := m.height - InputHeight - 3
-
-	messagesView := m.messages.View()
-	// Ensure messages panel has consistent height
-	messagesPanel := messagesStyle.
-		Width(messagesWidth).
-		Height(messagesHeight).
-		MaxHeight(messagesHeight).
-		Render(messagesView)
-
-	// Render input panel
-	inputStyle := PanelStyle
-	if m.focused == focusInput {
-		inputStyle = ActivePanelStyle
-	}
-	inputPanel := inputStyle.
-		Width(messagesWidth).
-		Height(InputHeight).
-		Render(m.input.View())
-
-	// Stack messages and input
-	rightPanel := lipgloss.JoinVertical(
-		lipgloss.Left,
-		messagesPanel,
-		inputPanel,
-	)
+	// Render windows area
+	windowsView := m.windowManager.Render()
 
 	// Join panels horizontally
 	content := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		chatPanel,
-		rightPanel,
+		windowsView,
 	)
 
 	// Render status bar
-	statusLeft := "  [Tab] switch  [↑↓] scroll  [Ctrl+D] send  [q] quit"
+	windowCount := m.windowManager.WindowCount()
+	splitHint := ""
+	if windowCount < 4 {
+		splitHint = "  [C-f] hsplit  [C-g] vsplit"
+	}
+	if windowCount > 1 {
+		splitHint += "  [Ctrl+W] close"
+	}
+
+	statusLeft := fmt.Sprintf("  [Tab] switch  [↑↓] scroll  [Enter] send/select%s  [q] quit", splitHint)
 	statusRight := ""
 
 	if m.loading {
@@ -275,9 +316,13 @@ func (m AppModel) View() string {
 	} else if m.err != nil {
 		statusRight = fmt.Sprintf(" ⚠ Error: %v ", m.err)
 	} else if m.wsConnected {
-		statusRight = " 🔗 Live "
+		statusRight = fmt.Sprintf(" 🔗 Live [%d/%d] ", windowCount, m.windowManager.maxWindows)
 	} else {
-		statusRight = " 📡 Polling "
+		statusRight = fmt.Sprintf(" 📡 Polling [%d/%d] ", windowCount, m.windowManager.maxWindows)
+	}
+
+	if m.lastKey != "" {
+		statusRight = fmt.Sprintf(" key:%q ", m.lastKey) + statusRight
 	}
 
 	statusBar := StatusBarStyle.
@@ -306,23 +351,22 @@ func loadChatsCmd(client *api.Client) tea.Cmd {
 	}
 }
 
-func loadMessagesCmd(client *api.Client, chatGUID string) tea.Cmd {
+func loadMessagesCmd(client *api.Client, chatGUID string, windowID WindowID) tea.Cmd {
 	return func() tea.Msg {
 		messages, err := client.GetMessages(chatGUID, 50)
 		if err != nil {
 			return errMsg(fmt.Errorf("failed to load messages: %v", err))
 		}
-		// Already reversed by API client
-		return messagesLoadedMsg(messages)
+		return messagesLoadedMsg{chatGUID: chatGUID, messages: messages}
 	}
 }
 
-func sendMessageCmd(client *api.Client, chatGUID, text string) tea.Cmd {
+func sendMessageCmd(client *api.Client, chatGUID, text string, windowID WindowID) tea.Cmd {
 	return func() tea.Msg {
 		if err := client.SendMessage(chatGUID, text); err != nil {
 			return sendErrMsg(err)
 		}
-		return sendSuccessMsg{}
+		return sendSuccessMsg{windowID: windowID}
 	}
 }
 
@@ -350,7 +394,6 @@ func (m *AppModel) handleWSEvent(event models.WSEvent) (tea.Model, tea.Cmd) {
 	switch event.Type {
 	case "new-message":
 		// Parse incoming message
-		// BlueBubbles sends the message with a "chats" array containing the chat GUID
 		var wsMsg struct {
 			models.Message
 			Chats []struct {
@@ -362,36 +405,35 @@ func (m *AppModel) handleWSEvent(event models.WSEvent) (tea.Model, tea.Cmd) {
 		}
 
 		msg := wsMsg.Message
-		// Extract chat GUID from the chats array
 		if len(wsMsg.Chats) > 0 {
 			msg.ChatGUID = wsMsg.Chats[0].GUID
 		}
 
-		if msg.ChatGUID != "" && m.activeChat != nil && msg.ChatGUID == m.activeChat.GUID {
-			// Active chat: append message directly
-			currentMsgs := m.messages.messages
-			currentMsgs = append(currentMsgs, msg)
-			m.messages.SetMessages(currentMsgs)
-		} else if msg.ChatGUID != "" {
-			// Not active chat: mark as having new message and move to top
-			m.chatList.MarkNewMessage(msg.ChatGUID)
+		if msg.ChatGUID != "" {
+			// Cache the message
+			m.windowManager.CacheMessage(msg.ChatGUID, msg)
+
+			// Update ALL windows showing this chat
+			windowsShowing := m.windowManager.WindowsShowingChat(msg.ChatGUID)
+			for _, window := range windowsShowing {
+				window.Messages.AppendMessage(msg)
+			}
+
+			// If no window is showing this chat, mark in chat list
+			if len(windowsShowing) == 0 {
+				m.chatList.MarkNewMessage(msg.ChatGUID)
+			}
 		}
 
-		// Re-arm WebSocket listener
 		return m, waitForWSEventCmd(m.wsClient)
 
 	case "updated-message":
-		// Message updated (read status, etc.)
-		// Re-arm WebSocket listener
 		return m, waitForWSEventCmd(m.wsClient)
 
 	case "chat-read-status-changed":
-		// Chat read status changed
-		// Re-arm WebSocket listener
 		return m, waitForWSEventCmd(m.wsClient)
 
 	default:
-		// Unknown event type, just re-arm
 		return m, waitForWSEventCmd(m.wsClient)
 	}
 }

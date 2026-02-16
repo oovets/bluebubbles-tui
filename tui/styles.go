@@ -7,6 +7,10 @@ import (
 const (
 	ChatListWidth = 25  // fixed width for left panel
 	InputHeight   = 3   // input box + borders
+
+	// Window dividers
+	DividerVertical   = "│"
+	DividerHorizontal = "─"
 )
 
 // Color scheme
@@ -18,15 +22,11 @@ const (
 )
 
 var (
-	// Panel styles
+	// Panel styles (no borders, just padding)
 	PanelStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(ColorBorder).
 		Padding(0, 1)
 
 	ActivePanelStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(ColorPrimary).
 		Padding(0, 1)
 
 	// Chat list styles
@@ -59,18 +59,22 @@ var (
 		Background(lipgloss.Color("235")).
 		Padding(0, 1)
 
-	// Input styles
-	InputStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true, false, false, false).
-		BorderForeground(ColorBorder)
+	// Input styles (no border)
+	InputStyle = lipgloss.NewStyle()
+
+	// Window styles for split view (no borders)
+	FocusedWindowStyle = lipgloss.NewStyle().
+		Padding(0, 1)
+
+	UnfocusedWindowStyle = lipgloss.NewStyle().
+		Padding(0, 1)
 )
 
 // CalculateLayout returns the optimal dimensions for each panel
 func CalculateLayout(screenWidth, screenHeight int) (chatListWidth, messagesWidth, messagesHeight, inputHeight int) {
-	// Subtract 4 for borders and padding
 	chatListWidth = ChatListWidth
-	messagesWidth = screenWidth - chatListWidth - 4 // -2 for left panel border, -2 for right panel border
-	messagesHeight = screenHeight - InputHeight - 3 // -1 status bar, -2 borders
+	messagesWidth = screenWidth - chatListWidth - 2 // -2 for padding
+	messagesHeight = screenHeight - InputHeight - 1 // -1 status bar
 	inputHeight = InputHeight
 
 	return

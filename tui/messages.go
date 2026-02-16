@@ -32,6 +32,12 @@ func (m *MessagesModel) SetMessages(messages []models.Message) {
 	m.renderContent()
 }
 
+// AppendMessage adds a single message to the list
+func (m *MessagesModel) AppendMessage(msg models.Message) {
+	m.messages = append(m.messages, msg)
+	m.renderContent()
+}
+
 func (m *MessagesModel) SetChatName(name string) {
 	m.chatName = name
 }
