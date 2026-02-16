@@ -45,7 +45,7 @@ Set environment variables or create a config file:
 ### Environment Variables (Easiest)
 
 ```bash
-export BB_SERVER_URL="https://192.168.0.159:8443"
+export BB_SERVER_URL="https://xxx.xxx.xxx.xxx:1234"
 export BB_PASSWORD="your-api-password"
 ```
 
@@ -54,7 +54,7 @@ export BB_PASSWORD="your-api-password"
 Create `~/.config/bluebubbles-tui/bluebubbles.yaml`:
 
 ```yaml
-server_url: "https://192.168.0.159:8443"
+server_url: "https://xxx.xxx.xxx.xxx:1234"
 password: "your-api-password"
 message_limit: 50
 chat_limit: 50
@@ -110,13 +110,13 @@ BlueBubbles uses self-signed HTTPS certificates. The client automatically skips 
 
 ### Seeing phone numbers instead of contact names
 1. Ensure contacts are synced in your BlueBubbles server
-2. Check the web interface contacts: https://192.168.0.159:8443/web
+2. Check the web interface contacts: https://xxx.xxx.xxx.xxx:1234/web
 3. The client fetches contacts from BlueBubbles - if they're not there, names won't appear
 4. Try restarting BlueBubbles server
 
 ### No chats showing
 1. Ensure your BlueBubbles server has synced iMessages
-2. Check the web interface: https://192.168.0.159:8443
+2. Check the web interface: https://xxx.xxx.xxx.xxx:1234
 3. Restart BlueBubbles if needed
 4. Verify credentials are correct
 5. Most active chats (with recent messages) will appear at the top
@@ -138,5 +138,5 @@ BlueBubbles uses self-signed HTTPS certificates. The client automatically skips 
 export PATH="/usr/local/go/bin:$PATH"
 cd ~/bluebubbles-tui
 go mod tidy
-go build -o bluebubbles-tui .
+go build
 ```
