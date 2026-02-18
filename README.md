@@ -15,7 +15,7 @@ A sleek, real-time terminal user interface (TUI) for BlueBubbles, allowing you t
 
 ## Prerequisites
 
-- Go 1.24+ (installed during setup)
+- Go 1.24+
 - BlueBubbles server running on macOS with iMessage synced
 - Network access to your BlueBubbles server (HTTP/HTTPS)
 - macOS contacts synced to BlueBubbles (for contact name display)
