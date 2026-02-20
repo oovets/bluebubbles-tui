@@ -357,10 +357,6 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// Switch focus to window input
 						m.focused = focusWindow
 						window.Input.textarea.Focus()
-						// Check cache first
-						if cached := m.windowManager.GetCachedMessages(selected.GUID); len(cached) > 0 {
-							window.Messages.SetMessages(cached)
-						}
 						return m, loadMessagesCmd(m.apiClient, selected.GUID, window.ID)
 					}
 				}
