@@ -13,6 +13,7 @@ type InputModel struct {
 func NewInputModel() InputModel {
 	ta := textarea.New()
 	ta.Placeholder = ""
+	ta.Prompt = " "
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 10000
 	ta.SetWidth(50)
