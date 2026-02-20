@@ -115,11 +115,32 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case messagesLoadedMsg:
-		// Update cache
-		m.windowManager.SetCachedMessages(msg.chatGUID, msg.messages)
-		// Update all windows showing this chat
+		// Merge API messages with any WS messages that arrived after the API snapshot.
+		// This prevents a race where WS-appended messages disappear when the API
+		// response (which may not yet include them) replaces the message list.
+		merged := msg.messages
+		if len(merged) > 0 {
+			newestAPITime := merged[len(merged)-1].DateCreated
+			for _, cached := range m.windowManager.GetCachedMessages(msg.chatGUID) {
+				if cached.DateCreated <= newestAPITime {
+					continue
+				}
+				// Only add if not already present
+				found := false
+				for _, m := range merged {
+					if m.GUID == cached.GUID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					merged = append(merged, cached)
+				}
+			}
+		}
+		m.windowManager.SetCachedMessages(msg.chatGUID, merged)
 		for _, window := range m.windowManager.WindowsShowingChat(msg.chatGUID) {
-			window.Messages.SetMessages(msg.messages)
+			window.Messages.SetMessages(merged)
 		}
 		return m, nil
 

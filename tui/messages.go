@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -34,9 +35,19 @@ func (m *MessagesModel) SetMessages(messages []models.Message) {
 	m.renderContent()
 }
 
-// AppendMessage adds a single message to the list
+// AppendMessage adds a single message to the list, deduplicating by GUID and keeping chronological order.
 func (m *MessagesModel) AppendMessage(msg models.Message) {
+	// Skip if we already have this message (e.g. WS fires after API reload)
+	for _, existing := range m.messages {
+		if existing.GUID == msg.GUID {
+			return
+		}
+	}
 	m.messages = append(m.messages, msg)
+	// Sort by time so buffered/delayed WS events land in the right position
+	sort.Slice(m.messages, func(i, j int) bool {
+		return m.messages[i].DateCreated < m.messages[j].DateCreated
+	})
 	m.renderContent()
 }
 

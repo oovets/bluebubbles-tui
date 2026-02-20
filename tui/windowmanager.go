@@ -263,8 +263,13 @@ func (wm *WindowManager) FocusDirection(dir Direction) {
 	}
 }
 
-// CacheMessage adds a message to the cache for a chat
+// CacheMessage adds a message to the cache for a chat, skipping duplicates.
 func (wm *WindowManager) CacheMessage(chatGUID string, msg models.Message) {
+	for _, existing := range wm.messageCache[chatGUID] {
+		if existing.GUID == msg.GUID {
+			return
+		}
+	}
 	wm.messageCache[chatGUID] = append(wm.messageCache[chatGUID], msg)
 }
 
