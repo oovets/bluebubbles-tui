@@ -76,6 +76,8 @@ chat_limit: 50
 | `Escape` | Return to chat list from any window |
 | `←` | Move to window on the left (or chat list if leftmost) |
 | `→` | Move to window on the right |
+| `Ctrl+↑` | Move to window above |
+| `Ctrl+↓` | Move to window below |
 | `↑` / `↓` or `k` / `j` | Navigate chat list / scroll messages |
 | `g` (chat list) | Jump to top of chat list |
 | `G` (chat list) | Jump to bottom of chat list |

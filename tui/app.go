@@ -249,6 +249,28 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case "ctrl+up":
+			if m.focused == focusWindow {
+				before := m.windowManager.FocusedWindow()
+				m.windowManager.FocusDirection(DirUp)
+				after := m.windowManager.FocusedWindow()
+				if before != after {
+					after.Input.textarea.Focus()
+				}
+			}
+			return m, nil
+
+		case "ctrl+down":
+			if m.focused == focusWindow {
+				before := m.windowManager.FocusedWindow()
+				m.windowManager.FocusDirection(DirDown)
+				after := m.windowManager.FocusedWindow()
+				if before != after {
+					after.Input.textarea.Focus()
+				}
+			}
+			return m, nil
+
 		case "tab":
 			// Simple toggle: chat list ↔ currently focused window.
 			// Arrow keys handle moving between windows.
