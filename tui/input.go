@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type InputModel struct {
@@ -11,11 +12,22 @@ type InputModel struct {
 
 func NewInputModel() InputModel {
 	ta := textarea.New()
-	ta.Placeholder = "Type a message... (Enter to send, Shift+Enter for newline)"
+	ta.Placeholder = ""
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 10000
 	ta.SetWidth(50)
 	ta.SetHeight(3)
+
+	// Strip all colors/borders from the textarea
+	plain := ta.FocusedStyle
+	plain.Base = lipgloss.NewStyle()
+	plain.CursorLine = lipgloss.NewStyle()
+	ta.FocusedStyle = plain
+
+	blurred := ta.BlurredStyle
+	blurred.Base = lipgloss.NewStyle()
+	blurred.CursorLine = lipgloss.NewStyle()
+	ta.BlurredStyle = blurred
 
 	return InputModel{
 		textarea: ta,
