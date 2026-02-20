@@ -42,8 +42,7 @@ var (
 
 	// Message styles
 	MyMessageStyle = lipgloss.NewStyle().
-		Foreground(ColorSecondary).
-		Align(lipgloss.Right)
+		Foreground(ColorSecondary)
 
 	TheirMessageStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).

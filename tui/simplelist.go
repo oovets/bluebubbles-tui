@@ -2,11 +2,33 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/bluebubbles-tui/models"
 )
+
+// stripEmojis removes emoji and symbol characters from a string using an
+// allowlist approach: only letters, digits, spaces, and common name punctuation
+// are kept. This handles all emoji blocks without enumerating them.
+func stripEmojis(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r): // keeps all scripts: Latin, Cyrillic, Arabic, CJK, etc.
+			b.WriteRune(r)
+		case unicode.IsDigit(r):
+			b.WriteRune(r)
+		case unicode.IsSpace(r):
+			b.WriteRune(r)
+		case r == '-' || r == '\'' || r == '.' || r == ',' || r == '(' || r == ')':
+			b.WriteRune(r)
+		// skip everything else (emoji, symbols, variation selectors, ZWJ…)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
 
 // SimpleListModel is a simple scrollable list without auto-centering
 type SimpleListModel struct {
@@ -138,7 +160,7 @@ func (m SimpleListModel) View() string {
 	// Render visible items
 	for i := m.offset; i < end; i++ {
 		chat := m.items[i]
-		name := chat.GetDisplayName()
+		name := stripEmojis(chat.GetDisplayName())
 		
 		// Truncate if too long
 		maxWidth := m.width - 4 // Leave some padding

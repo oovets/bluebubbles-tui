@@ -49,12 +49,15 @@ func (w *ChatWindow) SetBounds(x, y, width, height int) {
 	w.Input.SetSize(width - 2)
 }
 
-// SetChat sets the chat displayed in this window
+// SetChat sets the chat displayed in this window.
+// It copies the chat to avoid stale pointer issues when the chat list is reordered.
 func (w *ChatWindow) SetChat(chat *models.Chat) {
-	w.Chat = chat
 	if chat != nil {
-		w.Messages.SetChatName(chat.GetDisplayName())
+		chatCopy := *chat
+		w.Chat = &chatCopy
+		w.Messages.SetChatName(chatCopy.GetDisplayName())
 	} else {
+		w.Chat = nil
 		w.Messages.SetChatName("")
 		w.Messages.SetMessages(nil)
 	}

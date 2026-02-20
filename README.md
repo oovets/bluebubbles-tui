@@ -68,18 +68,38 @@ chat_limit: 50
 
 ### Keyboard Shortcuts
 
+#### Navigation
+
 | Key | Action |
 |-----|--------|
-| `Tab` | Switch focus between chat list, messages, and input |
-| `↑` / `↓` or `k` / `j` | Navigate chat list or scroll messages |
-| `Enter` (chat list) | Select and open chat |
-| `Enter` (input box) | Send message |
-| `Shift+Enter` (input box) | New line in message |
+| `Tab` | Toggle focus between chat list and current window |
+| `Escape` | Return to chat list from any window |
+| `←` | Move to window on the left (or chat list if leftmost) |
+| `→` | Move to window on the right |
+| `↑` / `↓` or `k` / `j` | Navigate chat list / scroll messages |
 | `g` (chat list) | Jump to top of chat list |
 | `G` (chat list) | Jump to bottom of chat list |
+| `Enter` (chat list) | Open selected chat in the focused window |
+| `Enter` (input) | Send message |
+| `Shift+Enter` (input) | New line in message |
+
+#### Split Windows
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+F` | Split focused window horizontally (side by side) |
+| `Ctrl+G` | Split focused window vertically (stacked) |
+| `Ctrl+W` | Close focused window |
+
+Up to 4 windows can be open simultaneously. Navigate to the chat list and press `Enter` to open a chat in whichever window is currently focused.
+
+#### Toggles
+
+| Key | Action |
+|-----|--------|
 | `Ctrl+S` | Toggle chat list visibility |
 | `Ctrl+T` | Toggle message timestamps |
-| `q` / `Ctrl+C` | Quit the application |
+| `q` / `Ctrl+C` | Quit |
 
 ## Architecture
 

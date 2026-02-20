@@ -41,7 +41,7 @@ func (m *MessagesModel) AppendMessage(msg models.Message) {
 }
 
 func (m *MessagesModel) SetChatName(name string) {
-	m.chatName = name
+	m.chatName = stripEmojis(name)
 }
 
 func (m *MessagesModel) SetSize(width, height int) {
@@ -67,6 +67,11 @@ func (m *MessagesModel) renderContent() {
 		return
 	}
 
+	wrapWidth := m.width
+	if wrapWidth < 1 {
+		wrapWidth = 60
+	}
+
 	var sb strings.Builder
 
 	for _, msg := range m.messages {
@@ -76,41 +81,40 @@ func (m *MessagesModel) renderContent() {
 		if msg.IsFromMe {
 			sender = "You"
 		} else if msg.Handle != nil && msg.Handle.DisplayName != "" {
-			sender = msg.Handle.DisplayName
+			sender = stripEmojis(msg.Handle.DisplayName)
 		} else if msg.Handle != nil {
 			sender = msg.Handle.Address
 		} else {
 			sender = "Unknown"
 		}
 
-		text := msg.Text
-
-		// Wrap text if needed
-		lines := strings.Split(text, "\n")
-		for i, line := range lines {
-			if i == 0 {
-				prefix := ""
-				if m.showTimestamps {
-					prefix = timeStr + " "
-				}
-				if msg.IsFromMe {
-					// Apply style to entire message including sender and text
-					styledLine := fmt.Sprintf("%s%s: %s", prefix, sender, line)
-					sb.WriteString(MyMessageStyle.Render(styledLine))
-				} else {
-					styledLine := fmt.Sprintf("%s%s: %s", prefix, sender, line)
-					sb.WriteString(TheirMessageStyle.Render(styledLine))
-				}
-			} else {
-				sb.WriteString("\n")
-				if msg.IsFromMe {
-					sb.WriteString(MyMessageStyle.Render(line))
-				} else {
-					sb.WriteString(TheirMessageStyle.Render(line))
-				}
-			}
+		prefix := ""
+		if m.showTimestamps {
+			prefix = timeStr + " "
 		}
-		sb.WriteString("\n")
+
+		fullText := fmt.Sprintf("%s%s: %s", prefix, sender, msg.Text)
+
+		if msg.IsFromMe {
+			// Wrap to wrapWidth, then manually right-align each line.
+			// Using Align(Right)+Width together makes each wrapped line get
+			// padded independently, which looks wrong for short continuation lines.
+			wrapped := lipgloss.NewStyle().Width(wrapWidth).Render(fullText)
+			for i, line := range strings.Split(wrapped, "\n") {
+				if i > 0 {
+					sb.WriteString("\n")
+				}
+				content := strings.TrimRight(line, " ")
+				if padLen := wrapWidth - lipgloss.Width(content); padLen > 0 {
+					sb.WriteString(strings.Repeat(" ", padLen))
+				}
+				sb.WriteString(MyMessageStyle.Render(content))
+			}
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString(TheirMessageStyle.Width(wrapWidth).Render(fullText))
+			sb.WriteString("\n")
+		}
 	}
 
 	m.viewport.SetContent(sb.String())
