@@ -95,6 +95,19 @@ func (m *SimpleListModel) MarkNewMessage(chatGUID string) {
 	}
 }
 
+// ClickAt sets the cursor to the item at the given y-coordinate within the
+// rendered list (y=0 is the title row, y=1 is the first item).
+func (m *SimpleListModel) ClickAt(y int) {
+	itemY := y - 1 // subtract title row
+	if itemY < 0 {
+		return
+	}
+	idx := m.offset + itemY
+	if idx >= 0 && idx < len(m.items) {
+		m.cursor = idx
+	}
+}
+
 // ClearNewMessage clears the new message indicator for a chat
 func (m *SimpleListModel) ClearNewMessage(chatGUID string) {
 	for i, chat := range m.items {

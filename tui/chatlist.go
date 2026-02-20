@@ -41,6 +41,11 @@ func (m *ChatListModel) MarkNewMessage(chatGUID string) {
 	m.list.MarkNewMessage(chatGUID)
 }
 
+// ClickAt sets the cursor to the item at the given y-coordinate.
+func (m *ChatListModel) ClickAt(y int) {
+	m.list.ClickAt(y)
+}
+
 // ClearNewMessage clears the new message indicator for a chat
 func (m *ChatListModel) ClearNewMessage(chatGUID string) {
 	m.list.ClearNewMessage(chatGUID)

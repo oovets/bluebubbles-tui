@@ -152,6 +152,41 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg
 		return m, nil
 
+	case tea.MouseMsg:
+		// Only handle left-click for focus/navigation; let other events
+		// (scroll wheel) fall through to the focused component.
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if m.showChatList && msg.X < ChatListWidth {
+				// Click in chat list — focus it and move cursor to clicked item
+				if m.focused == focusWindow {
+					if window := m.windowManager.FocusedWindow(); window != nil {
+						window.Input.textarea.Blur()
+					}
+				}
+				m.focused = focusChatList
+				m.chatList.ClickAt(msg.Y)
+			} else {
+				// Click in windows area — find and focus the clicked window
+				relX := msg.X
+				if m.showChatList {
+					relX = msg.X - ChatListWidth
+				}
+				for _, window := range m.windowManager.AllWindows() {
+					if relX >= window.x && relX < window.x+window.width &&
+						msg.Y >= window.y && msg.Y < window.y+window.height {
+						if old := m.windowManager.FocusedWindow(); old != nil && old.ID != window.ID {
+							old.Input.textarea.Blur()
+						}
+						m.windowManager.SetFocus(window.ID)
+						window.Input.textarea.Focus()
+						m.focused = focusWindow
+						break
+					}
+				}
+			}
+			return m, nil
+		}
+
 	case tea.KeyMsg:
 		m.lastKey = msg.String()
 		// Handle global keys first
